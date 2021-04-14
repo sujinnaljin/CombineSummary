@@ -130,4 +130,19 @@ final public class Future<Output, Failure> : Publisher
 - Future 은 promise 를 재실행하지 않고 대신 결과를 공유하거나 재생(replay) 함
 - Future은 만들어지자마자 실행됨. 즉, 다른 publisher와 다르게 subsucriber 가 필요 없음
 
+[Hello Subject]
+
+- Passthrough subject는 새로운 값을 원할때마다 publish 할 수 있음
+- `.store(in: &subscription)` 은 구독을 `subscription` set에 넣겠다는건데, 이때 `&subscription` 과 같이 inoput 파라미터로 전달됨. 따라서 복사가 일어나는 대신 같은 set이 update 될 수 있음
+- Passthrough subject와 다르게 CurrentValue subject는 `subject.value` 처럼 현재 값을 호출 가능
+-  CurrentValue subject에서 값을 전달하는 방법은 `send(_:)` 를 호출하는 것과 value property에 새 값을 할당하는 것 두가지
+
+[Type Eraser]
+
+- `.eraseToAnyPublisher()` 을 통해 type erased publisher을 만들 수 있음
+- AnyPublisher은 Publisher 을 conform 하는 type erased struct
+- AnyCancellable을 Cancellable을 conform 하는 type erased class
+- publisher의 type erasure을 사용하고 싶을때는 public - private 쌍으로 된 프로퍼티에서, 안쪽에서는 private publisher에 값을 보내고, 바깥쪽에서는 public publisher에 접근해서 구독하고 싶을때
+- AnyPublisher에는 `send(_:)` 연산자가 없기 때문에 새로운 값이 publisher에 더해질 수 없음 
+
 
