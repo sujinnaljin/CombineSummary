@@ -1,5 +1,7 @@
 # CombineSummary
 
+## Chapter 1. Hello Combine
+
 [Publisher]
 
 - 값을 방출하는 것. (추후 subscriber 들이 값을 받게 됨)
@@ -34,6 +36,8 @@
 [Chapter 1 - Key points]
 
 - Combine은 시간에 따른 비동기 이벤트를 처리하기 위한 framework
+
+## Chapter 2. Publishers & Subscribers
 
 [Hello Publisher]
 
@@ -145,4 +149,72 @@ final public class Future<Output, Failure> : Publisher
 - publisher의 type erasure을 사용하고 싶을때는 public - private 쌍으로 된 프로퍼티에서, 안쪽에서는 private publisher에 값을 보내고, 바깥쪽에서는 public publisher에 접근해서 구독하고 싶을때
 - AnyPublisher에는 `send(_:)` 연산자가 없기 때문에 새로운 값이 publisher에 더해질 수 없음 
 
+## Chapter 3. Transforming Operators
 
+- operator는 publisher
+- publisher로부터 들어오는 값들에 동작을 수행하는 것을 operator 라고 함
+- operator는 publisher를 반환
+
+[Collecting values]
+
+- `collect()`
+  - publisher에서 방출되는 각각의 값을 하나의 array로 모음
+  - upstream publisher가 complete 될때 동작
+  - 아니면 `collect(2)` 같이 몇개의 값을 받아 묶을 건지 정할 수 있음
+  - `collect()`  나 다른 buffering operator 와 같이 개수 제한이 없는 연산자를 사용하면 수신된 값을 저장하기 위해 메모리가 무한히 늘어날 수 있기 때문에 주의 필요. 
+
+[Mapping values]
+
+- `map(_:)`
+  - Swift의 standard map 처럼 동작
+  - map 계열의 연산자는 key path를 이용해서 한가지 / 두가지 / 세가지 값을 매핑할 수 있는 세 버전이 존재.
+    - `map<T>(_:)`
+    - `map<T0, T1>(_:,_:)`
+    - `map<T0, T1, T2>(_:,_:,_:)`
+- `tryMap(_:)`
+  - `map` 을 포함한 여러 operator 들은 상응하는 try operator를 가지는데, 여기서는 error 를 throw 할 수 있음 
+  - 에러가 throw 되면 해당 에러를 downstream 으로 보냄
+  - throw를 호출할 때는 try 키워드 사용 필요
+
+[Flattening Publishers]
+
+- `flatMap(maxPublishers:_:)`
+
+  - 여러개의 upstream publisher 들을 하나의 downstream publisher로 flatten (정확히는 이러한 publisher 들의 방출 값들을 flatten 하는 것)
+
+    애플 문서: upstream publisher의 모든 요소를 지정한 최대 publishers 수까지 새로운 publisher로 변환
+
+  - 주로 Publisher 들을 값으로 방출하는 Publisher 를 구독할 때 사용
+
+  - 들어오는 모든 publisher 들을 버퍼에 저장하기 때문에 메모리 이슈가 있을 수 있음  
+
+  - maxPublishers 파라미터를 통해 받을 publisher의 개수를 정할 수도 있음. 디폴트는 `.unlimited`
+
+    `flatMap { $0.message }`
+
+    `flatMap(maxPublishers: .max(2)) { $0.message }`
+
+[Replacing upstream output]
+
+- `replaceNil(with:)`
+
+  - optional 값을 받아서 그 중 nil을 지정한 값으로 대체
+
+  - nil을 non-nil 로 바꿀 뿐, optional을 non-optional로 만드는 것은 아님. 
+
+    `["A", nil] -> [Optional("A"), Optional("specifiedValue")]`
+
+  - `??` 연산자는 또 다른 optional을 반환 가능하지만 replaceNil 은 불가
+
+    `.replaceNil(with: "-" as String?)` 하면 optional must be unwrapped 라는 에러 받을 것 
+
+- `replaceEmpty(with:)`
+
+  - 만약 publisher가 아무 값도 방출하지 않고 끝난다면 값을 대체 (정확히는 insert)
+  - 참고로 Empty publisher은 demo나 테스팅 목적으로 좋음
+
+[Incrementally transforming outout]
+
+- `scan(_:_:)`
+  - upstream publisher에서 방출된 현재 값과, 해당 closure에서 반환된 마지막 값을 같이 보냄
+  - 비슷하게 동작하는 `tryscan` 이라는 error throwing 연산자도 있음. 만약 클로저에서 에러 방출하면 `tryscan`은 해당 에러와 함께 fail 함
