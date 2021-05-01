@@ -278,3 +278,99 @@ final public class Future<Output, Failure> : Publisher
 - Last-style 연산자는 greedy 함. 전체 범위만큼의 값을 알아야함.
 - `drop` family 연산자를 이용해서 필요한 만큼 값을 무시할 수 있음
 - `prefix` family 연산자를 이용해서 필요한 만큼만 값을 받을 수 있음.
+
+## Chapter 5. Combining Operators
+
+- 사용자의 이름, 비밀번호, 체크 박스 등의 데이터를 결합해서 하나의 publisher로 합치고 싶을때 유용
+
+### [Prepending]
+
+- original publisher 이전에 값을 추가
+
+- `prepend(Output...)`
+
+  - 인자로 값의 variadic list 를 받음
+
+  - original publisher와 같은 Output 타입이면 얼마든지 값을 받을 수 있음
+
+  - 마지막 prepend 가 첫번째로 upstream에 적용된다
+
+    ```swift
+    publisher
+    	.prepend(1, 2)
+    	.prepend(-1, 0)
+    	.sink { print($0) }
+    
+    //-1, 0, 1, 2 ....
+    ```
+
+- `prepend(Sequence)`
+
+  - 인자로 Sequnce를 conform하는 객체를 받음
+  - ex) Array, Set, Stridable
+
+- `prepend(Publisher)`
+
+  - 인자로 Publisher로 받음
+  - 인자로 받은 publisher에서 방출되는 값을 original publisher 이전에 추가
+  - 앞에 추가된 publisher가 반드시 완료 되고난 후에야 original publisher에서 마저 값을 방출할 수 있음
+
+### [Appending]
+
+- prepend 와 비슷하게 동작
+
+- `append(Output...)`
+  - 인자로 값의 variadic list 를 받음
+  - original publisher가 완료되고 난 후에 받은 값들을 뒤에 붙임
+  - upstream 은 반드시 완료되어야함. 그렇지 않으면 이전 publisher가 값을 모두 방출했는지 알지 못하기 때문에 appending 이 동작하지 않음. 
+  - 이 속성은 모든 append operator family에게 적용됨. 즉 original publisher가 completion 을 보내지 않는한 appending은 동작하지 않음
+- `append(Sequence)`
+  - 인자로 Sequnce를 conform하는 객체를 받아서 original publisher에서 모든 값을 방출하고 나면 값을 append 함
+- `append(Publisher)`
+  - 인자로 Publisher로 받아서 original publisher에서 모든 값을 방출하고 나면 값을 append 함
+
+### [Advanced Combining]
+
+- `switchToLatest`
+
+  - 기존 publisher의 구독을 취소하고, 최신으로 들어온 publisher로 모든 구독 전환
+
+  - publisher을 방출하는 publisher에만 사용할 수 있음 (`let myPublisher = PassthroughSubject<PassthroughSubject<Int, Never>, Never>()`)
+
+  - 만약 `myPublisher` 에 새로운 publisher를 방출하면 기존의 구독은 취소하고 새로운 것으로 전환됨
+
+  - `myPublisher` 에 complete를 방출하면 활성화 되어있는 모든 구독도 complete
+
+  - 만약 사용자가 네트워크 요청을 트리거하는 버튼을 탭했다고 가정. 동일 버튼을 다시 탭해서 두번째 네트워크 요청을 트리거. 만약 첫번째 요청은 무시하고 마지막 요청만 사용하고 싶을때 switchToLatest는 좋은 선택지
+
+    ```swift
+    let taps = PassthroughSubject<Void, Never>()
+    
+    taps
+      .map { _ in getImage() }
+      .switchToLatest()
+      .sink(receiveValue: { _ in })
+      .store(in: &subscriptions)
+    
+    taps.send()
+    taps.send()
+    ```
+
+- `merge(with:)`
+
+  - 다른 publisher에서 방출하는 값(동일 type)들을 교차로 배치(interleave)
+  - Combine은 publisher를 8개까지 merge할 수 있는 overload 제공
+
+- `combineLatest`
+
+  - 다른 type 값을 방출하는 publisher들을 결합
+  - 아무 publisher에서 값을 방출할때마다, 모든 publisher의 마지막 값을 tuple로 묶어서 방출
+  - 따라서 모든 publisher는 적어도 하나의 값을 방출해야 combineLatest가 동작함
+  - publisher를 4개까지 결합할 수 있는 overload 제공
+
+- `zip`
+
+  - Swift 표준 라이브러리에 있는 zip 과 동작이 유사
+  - publisher들에서 같은 index에 있는 값들을 tuple로 방출
+  - 각 publisher가 값을 방출하기를 기다리다가 현재 index에 해당하는 값을 모든 publisher에서 방출하면 하나의 tuple로 묶어서 방출
+  - 만약 다른 publisher에서 짝지어 사용할 값이 없다면 무시됨 
