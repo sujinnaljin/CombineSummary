@@ -374,3 +374,40 @@ final public class Future<Output, Failure> : Publisher
   - publisher들에서 같은 index에 있는 값들을 tuple로 방출
   - 각 publisher가 값을 방출하기를 기다리다가 현재 index에 해당하는 값을 모든 publisher에서 방출하면 하나의 tuple로 묶어서 방출
   - 만약 다른 publisher에서 짝지어 사용할 값이 없다면 무시됨 
+
+## Chapter6. Time Manipulation Operators
+
+### [Shifting time]
+
+- `delay(for:tolerance:scheduler:options)`
+
+  - 모든 값의 시퀀스를 time-shift 함
+  - Upstream Publisher 에서 값을 방출할 때마다, 해당 값을 delay 시간 이후에, 지정한 Scheduler 에서 방출
+
+  > Note 
+  >
+  > - 예제에서 사용하는 `Timer` class는 Foundation 프레임워크의 Timer 클래스의 Combine 확장형.
+  >
+  > -  `DispatchQueue` 가 아닌 `RunLoop` 와 `RunLoop.Mode` 를 사용.
+  > - timer는 connectable한 class. 즉, 값을 방출하기 전에 connect 되어야한다. 예제에서는 첫번째 subscription에서 즉시 connect되는  `.autoconnect()`  를 이용.
+  > - 타이머에 대한 자세한 내용은 Chapter 11. Timer에서 확인 가능. 
+
+### [Collecting Values]
+
+- `collect`
+
+- `collect(_:options:)`
+
+### [Holding off on events]
+
+- `debounce`
+- `throttle`
+
+### [Timing out]
+
+- `timeout`
+
+### [Measuring time]
+
+- ` measureInterval(using:)`
+
