@@ -404,7 +404,7 @@ final public class Future<Output, Failure> : Publisher
   ```swift
   publisher.collect(.byTime(DispatchQueue.main, 
                             .seconds(4)))
-  				 .flatMap { dates in dates.publisher } 
+           .flatMap { dates in dates.publisher } 
   ```
 
   - 위의 collect 에서 나오는 값은 이전 4초 동안 받은 값들의 배열
@@ -418,7 +418,7 @@ final public class Future<Output, Failure> : Publisher
   publisher.collect(.byTimeOrCount(DispatchQueue.main,
                                   .seconds(collectTimeStride),
                                   collectMaxCount))
-  				 .flatMap { dates in dates.publisher } 
+           .flatMap { dates in dates.publisher } 
   ```
   - 이렇게 하면 maxCount 가 collect 되었을때랑, 일정 timeStride 지났을때 모두 emit
 
