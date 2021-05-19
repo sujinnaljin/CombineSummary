@@ -394,9 +394,33 @@ final public class Future<Output, Failure> : Publisher
 
 ### [Collecting Values]
 
-- `collect`
+- 특정 시간 간격으로 값을 수집하고 싶을 수 있음
 
 - `collect(_:options:)`
+
+  - 첫번째 인자에서 값을 grouping 하기 위한 정책을 accept
+  - 아래의  `.byTime` strategy 는 '시간'을 기준으로 값을 모으는 것
+
+  ```swift
+  publisher.collect(.byTime(DispatchQueue.main, 
+                            .seconds(4)))
+  				 .flatMap { dates in dates.publisher } 
+  ```
+
+  - 위의 collect 에서 나오는 값은 이전 4초 동안 받은 값들의 배열
+  - collect 가 수집한 값의 배열을 내보낼 때마다 flatMap은 다시 개별 값으로 분해 후, 동시에 모두 방출
+  - `.byTimeOrCount` strategy는 수집되는 값의 개수를 제한
+
+  ```swift 
+  let collectTimeStride = 4
+  let collectMaxCount = 2
+  
+  publisher.collect(.byTimeOrCount(DispatchQueue.main,
+                                  .seconds(collectTimeStride),
+                                  collectMaxCount))
+  				 .flatMap { dates in dates.publisher } 
+  ```
+  - 이렇게 하면 maxCount 가 collect 되었을때랑, 일정 timeStride 지났을때 모두 emit
 
 ### [Holding off on events]
 
