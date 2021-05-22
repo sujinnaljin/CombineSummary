@@ -425,13 +425,97 @@ final public class Future<Output, Failure> : Publisher
 ### [Holding off on events]
 
 - `debounce`
+
+  - 이벤트 사이에 특정 시간이 경과했을때 값을 방출
+
+  ```swift
+  subject.debounce(for: .seconds(1.0), scheduler: DispatchQueue.main).share()
+  ```
+
+  - debounce 는 upstream에서 값이 방출된 후에 1초 동안 다음 값이 안들어오면 해당 값을 방출 
+  - debounce 된 것을 여러 곳에서 구독할 수 있는데, 이때 결과의 일관성을 보장하기 위해 share()을 이용. 이는 debounce에 대한 하나의 subscription point를 제공함으로써 모든 subscriber 에게 같은 값을 보여줌.
+
+  > Note: share()은 다수의 subscriber에게 같은 결과를 제공하기 위해서 publisher에 대한 single subscription이 필요할때 유용. Chapter 13에서 더 자세히 배움
+
+  - 유저가 두 단어 사이에 잠시 멈출 때가 debounce가 값을 방출할 때임
+
+  ```swift 
+  0.6s: Subject emitted: Hello
+  1.6s: Debounced emitted: Hello
+  2.1s: Subject emitted: Hello W
+  2.1s: Subject emitted: Hello Wo
+  ...
+  2.7s: Subject emitted: Hello World
+  3.7s: Debounced emitted: Hello World
+  ```
+
+  > Note: publisher의 completion 에 대해서는 주의 필요. 만약 publisher가 마지막 값을 방출한 후에 debounce에서 정의한 시간이 경과하기 전에  complete 되었다면, debounced publisher에서는 마지막 값을 볼 수 없음
+
 - `throttle`
+
+  - 특정 시간 간격동안 usptream에서 방출된 최신 혹은 처음의 값을 방출
+  - debounce와 유사하지만 근본적인 차이점 존재
+    - debounce : 값을 받는 것이 멈추길 기다린 다음, 지정된 시간 간격 후에 최신 값을 방출
+    - throttle : 지정된 시간 간격 동안 대기한 다음, 해당 간격 동안 수신한 값의 첫 번째 또는 최신 값 방출. 값의 수신이 멈추는 것과는 상관 없음.
+
+  ```swift 
+  subject.throttle(for: .seconds(1.0), scheduler: DispatchQueue.main, latest: false)
+  ```
+
+  - throttled subject는 1초 간격으로 subject로부터 받은 첫번째 값을 방출. (latest를 false 로 설정해놨으므로)
+
+   ```swift 
+  0.0s: Subject emitted: H
+  ...
+  0.6s: Subject emitted: Hello
+  1.0s: Throttled emitted: H
+  2.2s: Subject emitted: Hello W
+  ...
+  2.7s: Subject emitted: Hello World
+  3.0s: Throttled emitted: Hello World
+   ```
 
 ### [Timing out]
 
 - `timeout`
 
+  - upstream publisher가 element를 방출하지 않고 지정된 시간 간격을 초과할 경우 종료
+  - timeout 연산자가 실행되면 publisher 를 complete하거나 사용자가 지정한 error 방출하는데, 두 경우 모두 publisher는 종료됨
+
+  ```swift 
+  subject.timeout(.seconds(5), scheduler: DispatchQueue.main)
+  ```
+
+  - timedOut publisher는 5초 동안 upstream publisher에서 아무 값을 내보내지 않으면 timeout 됨
+  - 위의 형식은 failiure 없이 publisher가 completion 되는 형태인데, `customError` 인자를 통해 커스텀 에러도 제공 가능
+
+  ```swift
+  subject.timeout(.seconds(5), scheduler: DispatchQueue.main, customError: { .timeOut })	
+  ```
+
+
 ### [Measuring time]
 
 - ` measureInterval(using:)`
 
+  - publisher가 연속해서 내보내는 두 값 사이에 경과한 시간을 확인해야 하는 경우 사용. 시간 측정 용도.
+
+  ```swift 
+  subejct.measureInterval(using; DispatchQueue.main)
+  ```
+
+  ```swift 
+  0.0s: Subject emitted: H
+  0.0s: Measure emitted: Stride(magnitude: 16818353)
+  0.1s: Subject emitted: He
+  0.1s: Measure emitted: Stride(magnitude: 87377323)
+  0.2s: Subject emitted: Hel
+  0.2s: Measure emitted: Stride(magnitude: 111515697)
+  ...
+  ```
+
+  - measureInterval이 방출하는 값의 type은 제공된 스케줄러의 `TimeInterval` 
+  - DispatchQueue의  `TimeInterval`은 `DispatchTimeInterval`으로, nano seconds로 표현됨
+  - DispatchQueue 대신 seconds 로 표현되도록 Runloop 같은 다른 스케쥴러를 사용할 수도 있음. DispatchQueue를 사용하는게 일반적으로 좋은 방법이긴 하지만, 이는 개인적인 선택에 달림.
+
+  
