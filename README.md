@@ -518,4 +518,122 @@ final public class Future<Output, Failure> : Publisher
   - DispatchQueue의  `TimeInterval`은 `DispatchTimeInterval`으로, nano seconds로 표현됨
   - DispatchQueue 대신 seconds 로 표현되도록 Runloop 같은 다른 스케쥴러를 사용할 수도 있음. DispatchQueue를 사용하는게 일반적으로 좋은 방법이긴 하지만, 이는 개인적인 선택에 달림.
 
+## Chapter 7. Sequence Operators
+
+- array 나 set 같은 Publisher 값의 collection 들로 작업
+- 대부분 sequence 의 개별 값이 아니라 전체 값을 다룸
+
+### [Finding Values]
+
+- `min`
+
+  - publisher가 방출한 가장 작은 값을 찾음
+  - greedy 함. 즉, publisher가 `.finished` 완료 이벤트를 방출할때까지 기다림
+
+  ```swift
+  publisher.min()
+  ```
+
+  - 숫자값들은 Comparable protocol을 준수하기 때문에 combine은 최솟값을 알 수 있음
+  - Comparable을 준수하는 값을 방출하는 publisher에 대해서는 인자 없이 min()  사용 가능
+  - `min(by:)` 를 사용하여Comparable을 준수하지 않는 값에 대해서 comparator closure를 제공
+
+  ```swift
+  publisher.min(by: {$0.count < $1.count})
+  ```
+
+- `max`
+
+  - 최댓값을 찾는다는 것만 제외하고는 `min` 과 유사하게 동작
+
+  ```swift
+  publisher.max()
+  ```
+
+  - greedy 함. 즉, publisher가 `.finished` 완료 이벤트를 방출할때까지 기다림
+  - `max(by:)` 를 사용하여Comparable을 준수하지 않는 값에 대해서 comparator closure를 제공
+
+- `first`
+
+  - 첫번째 값을 방출시킨 후 즉시 완료 함
+  - lazy 함. 즉, upstream publisher가 종료되길 기다리지 않고, 첫번째 값을 받자마자 subscription을 cancel
+
+  ```swift
+  publisher.first()
+  ```
+
+  - `first(where:)` 을 사용하여 조건에 맞는 첫번째 값을 방출할 수도 있음
+
+  ```swift
+  publisher.first(where: {"Hello world".contains($0)})
+  ```
+
+- `last`
+
+  - 마지막 값을 방출
+  - greedy 함. 즉 upstream publisher가 finish 될때까지 기다림
+
+  ```swift
+  publisher.last()
+  ```
+
+  - `last(where:)` 을 사용하여 조건에 맞는 마지막 값을 방출할 수도 있음
+
+- `output(at:)`
+
+  - 특정한 index에 있는 값을 방출
+
+  ```swift
+  ["A", "B", "C"].publisher
+  .print("publisher")
+  .output(at: 1)
+  .sink { print("Value at index 1 is \($0)") }
+  .store(in: &subscriptions)
+  ```
+
+  ```
+  // 출력
+  publisher: receive subscription: (["A", "B", "C"])
+  publisher: request unlimited
+  publisher: receive value: (A)
+  publisher: request max: (1) (synchronous) //demands one more value
+  publisher: receive value: (B)
+  Value at index 1 is B
+  publisher: receive cancel
+  ```
+
+  - 특정한 index의 값만 원하기 때문에, 각 방출마다 one more value를 요구(demand)함
+  - 👩🏻‍💻 만약 `.output(at: 2)` 로 요청을 보냈다면 아래와 같이 max request가 조절됨
+
+  ```
+  publisher: receive value: (A)
+  publisher: request max: (1) (synchronous)
+  publisher: receive value: (B)
+  publisher: request max: (1) (synchronous)
+  ```
+
+  - 👩🏻‍💻 만약 collection size 보다 큰 index를 요구하면 그냥 upstream publisher 가 complete 될때까지 아무 값도 방출하지 않는 것
+
+- `output(in:)`
+
+  - `output(at:)` 이 특정 index에 있는 단일 값을 방출했다면, `output(in:)` 은 특정 범위 (range)에 있는 값들을 방출
+
+  ```swift
+  ["A", "B", "C", "D", "E"]
+      .output(in: 1...3)
+      .sink(receiveCompletion: { print($0) },
+            receiveValue: { print("Value in range: \($0)") })
+      .store(in: &subscriptions)
+  ```
+
+  ```
+  // 출력
+  Value in range: B
+  Value in range: C
+  Value in range: D
+  ```
+
+  - 특정 범위에 속하는 값들을 개별적으로 방출하는거지, collection으로 방출하는게 아님
+  -  👩🏻‍💻 만약 collection size 보다 큰 index가 범위로 들어오면, emit 할 수 있는 범위까지 방출하고 complete 되는 것
+  - 원하는 모든 값을 받았으면 즉시 subscription을 취소(cancel)함
   
