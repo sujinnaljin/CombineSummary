@@ -636,4 +636,58 @@ final public class Future<Output, Failure> : Publisher
   - 특정 범위에 속하는 값들을 개별적으로 방출하는거지, collection으로 방출하는게 아님
   -  👩🏻‍💻 만약 collection size 보다 큰 index가 범위로 들어오면, emit 할 수 있는 범위까지 방출하고 complete 되는 것
   - 원하는 모든 값을 받았으면 즉시 subscription을 취소(cancel)함
-  
+  ### [Querying the publisher]
+
+- publisher로 부터 방출되는 값의 entire set 을 다룸. 하지만 publisher에서 방출하는 특정한 값을 내보내진 않고, publisher 전체에 대해 쿼리를 적용한 값을 내보냄
+
+- `count`
+
+  - upstream publisher가 `.finished` 완료 이벤트를 보내고 나면, 지금까지 얼마나 많은 값을 방출했는지를 나타내는 단일 값을 내보냄
+
+  ```swift
+  publisher.count()
+  ```
+
+  - 👩🏻‍💻 만약 에러로 complete되면 값 못받고 끝나는거
+
+- `contains`
+
+  - 특정 값이 upstream publisher로부터 방출되면 true를 방출 후 바로 subscription을 취소하고, 끝날 때까지 매치되는 값이 없으면 false를 방출
+
+  ```swift
+  publisher.contains("C")
+  ```
+
+  - lazy 함. 즉 작업을 수행하는 데 필요한 만큼의 업스트림 값만 소비함. 만약 원하는 값을 찾으면 supscription을 취소하고 이후 값들은 생산하지 않음
+  - `contains(where:)` 을 사용하여 특정 조건과 일치하는 항목을 찾거나, Comparable protocol 을 준수하지 않는 방출 값들을 확인할 수 있음
+
+  ```swift
+  publisher.contains(whre: {$0.id == 800})
+  ```
+
+- `allSatisfy`
+
+  - upstream publisher로 부터 방출된 모든 값이 조건에 부합하는지 나타내는 Boolean 값 방출
+  - greedy 함. 즉, upstream publisher 가 `.finished` 완료 이벤트를 방출할 때까지 기다림
+
+  ```swift
+  publisher.allSatisfy { $0 % 2 == 0 }
+  ```
+
+  - 👩🏻‍💻 만약 에러로 complete되면 값 못받고 끝나는거
+  - 만약 한개라도 조건을 통과하지 못하면 즉시 false 를 방출하고 subscription을 취소 
+
+- `reduce`
+
+  - upstream publisher 에서 방출된 값들을 기본으로, 새로운 값을 축적
+  - seed value와 accumulator closure 를 제공. 
+  - 이 closure는 seed value로 시작하는 accumulated value 와, current value 를 받음. 그리고 같은 type의 새로운 accumulated value를 return
+  - `.finished` 이벤트를 받으면 최종 accumulated value 를 방출
+
+  ```swift
+  publisher.reduce(""){accumulator, value in accumulator + value}
+  ```
+
+  > Note: Chapter 3에 소개했던 scan 과 reduce 는 동일한 기능을 수행. 다만 scan은 값이 방출될 때마다 매번 같이 accumulated value를 방출하고, reduce는 upstream publisher가 .finished 완료 이벤트를 보냈을때 한번만 accumulated value를 방출
+
+
