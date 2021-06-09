@@ -689,5 +689,70 @@ final public class Future<Output, Failure> : Publisher
   ```
 
   > Note: Chapter 3에 소개했던 scan 과 reduce 는 동일한 기능을 수행. 다만 scan은 값이 방출될 때마다 매번 같이 accumulated value를 방출하고, reduce는 upstream publisher가 .finished 완료 이벤트를 보냈을때 한번만 accumulated value를 방출
+## Chapter 9. Networking
+
+### [URLSession extensions]
+
+- URLSession을 이용해 다양한 network 작업을 할 수 있음
+  - url의 내용을 얻기 위한 데이터 전송 작업
+  - 다운로드 & 저장 작업
+  - 업로드 작업
+  -  두 당사자 간의 데이터를 스트리밍을 위한 Stream 작업
+  - 웹소켓 작업
+- 그 중 Combine publisher는 첫번째에 해당하는 데이터 전송 작업에 대해서 제공 됨
+
+```swift
+URLSession.shared
+	.dataTaskPublisher(for: url)
+```
+
+### [Codable Support]
+
+- 기존에는 Data를 디코딩하려면 tryMap에서 JSONDecoder 사용
+
+```swift
+URLSession.shared
+	.dataTaskPublisher(for: url)
+	.tryMap { data, _ in
+          	try JSONDecoder().decode(MyType.self, from: data)
+          }
+```
+
+- Combine 은 JSON 디코딩을 편하게 해주는 함수 제공 -> `decode(type:decoder:)`  
+
+```swift
+URLSession.shared
+	.dataTaskPublisher(for: url)
+	.map(\.data)
+	.decode(type: MyType.self, decoder: JSONDecoder())
+```
+
+- tryMap에서는 매번 JSONDecoder를 초기화해야 하지만, Combine에서 제공하는 decode 함수를 사용하면 publisher를 세팅할 때 한번만 하면 됨
+
+### [Publishing network data to multiple subscribers]
+
+- Publisher는 구독(subscribe)될 때마다 일을 시작. 네트워크 요청의 경우, 다수의 subscriber가 결과를 필요로 할 때 동일한 요청을 여러 번 보내는 것을 의미.
+- 하지만 나는 같은것이라면 한번만 요청하고 싶은데..?! -> Combine에서 이 문제를 쉽게 해결할 수 있는 연산자가 딱히 없음. `share()` 을 사용할 수도 있지만, 결과가 return 되기 전에 모든 subscriber가 구독을 마친 상태여야 하기 때문에 까다로움.
+- 캐싱을 사용하는 것 외에, 하나의 해결책은 `multicast` 연산자를 사용하는 것.
+- `multicast` 연산자는 Subject를 통해 값을 방출하는 `ConnectablePublisher`를 만듦. 얘를 통해 해당 subject를 여러 번 구독할 수 있고, 이후 준비가 되면 publisher의 `connect` 함수를 호출하면 됨
+
+```swift
+let publisher = URLSession.shared
+  .dataTaskPublisher(for: url)
+  .map(\.data)
+  .multicast { PassthroughSubject<Data, URLError>() }
+
+let subscription1 = publisher
+  .sink {...}
+
+let subscription2 = publisher
+  .sink {...}
+
+let subscription = publisher.connect()
+```
+
+- publisher는 ConnectablePublisher 이기 때문에 sink로 구독하더라도 바로 시작되지 않음
+- 준비가 되었을때 connect를 호출하면, 작업을 시작하고 모든 subscriber에게 값을 전달
+
 
 
