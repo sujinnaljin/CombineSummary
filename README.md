@@ -754,5 +754,93 @@ let subscription = publisher.connect()
 - publisher는 ConnectablePublisher 이기 때문에 sink로 구독하더라도 바로 시작되지 않음
 - 준비가 되었을때 connect를 호출하면, 작업을 시작하고 모든 subscriber에게 값을 전달
 
+## Chapter 10. Debugging
+
+### [Printing events]
+
+- `print(_:to:)`
+
+  - 뭔 상황이 일어나고 있는지 모를때 첫번째로 사용해봐야할 operator
+  - 무슨 일이 발생하고 있는지에 대해 많은 정보를 프린트해주는 passthrough publisher 
+    - subscription을 받은 시점과 upstream publisher에 대한 설명
+    - subscriber의 demand request (요청되는 개수를 알 수 있게 한다)
+    - upstream publisher가 방출하는 모든 값
+    - 완료 이벤트
+
+  ```swift
+  publisher
+  	.print("publisher")
+  ```
+
+  - `TextOutputStream` 객체를 파라미터로 추가해서 이곳으로 문자열을 redirection 시킬 수 있음. 이렇게 들어온 기존의 정보에 현재 날짜나 시간을 추가하는 등 다양한 방식으로 프린트 가능.
+
+  ```swift
+  class TimeLogger: TextOutputStream {
+      private var previous = Date()
+      private let formatter = NumberFormatter()
+      init() {
+          formatter.maximumFractionDigits = 5
+          formatter.minimumFractionDigits = 5
+      }
+      // TextOutputStream 프로토콜에서 기본으로 구현해야하는 write 함수. string 파라미터는 redirection 된 기존의 정보
+      func write(_ string: String) {
+          let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+          guard !trimmed.isEmpty else { return }
+          let now = Date()
+          print("+\(formatter.string(for: now.timeIntervalSince(previous))!)s: \(string)")
+          previous = now
+      }
+  }
+  
+  //사용
+  publisher
+      .print("publisher", to: TimeLogger())
+  ```
+
+### [Acting on events - performing side effects]
+
+- `handleEvents(receiveSubscription:receiveOutput:receiveCompletion:receiveCancel:receiveRequest:)`
+
+  - publisher의 라이프사이클에 있는 모든 이벤트를 가로채고, 각 단계에서 조치를 취할 수 있음
+
+  ```swift
+  publisher
+  .handleEvents(receiveSubscription: { _ in
+    print("start")
+  }, receiveOutput: { _ in
+    print("received")
+  }, receiveCancel: {
+    print("cancelled")
+  })
+  .sink {}
+  ```
+
+### [Using the debugger as a last resort]
+
+- 위에서 소개된 그 무엇도 문제를 알아내는데 도움이 되지 않을 때 최후의 수단으로 디버거 사용
+
+-  `breakpointOnError()`
+
+   - upstream publisher에서 오류가 발생하면 break
+
+- `breakpoint(receiveSubscription:receiveOutput:receiveCompletion:)`
+
+  - 다양한 이벤트를 가로채고, 디버거를 일시 중지할지 여부를 사례별로 결정 가능
+
+  ```swift
+  .breakpoint(receiveOutput: { value in
+    return value > 10 && value < 15
+  })
+  ```
+
+  - subscription와 completion에서 break 할 수 있지만, handleEvents 연산자처럼 cancelation은 가로챌 수 없음
+
+### [Chapter 10- Key points]
+
+- `print` 연산자와 함께 publisher의 lifecycle을 추적 가능
+- 고유한 `TextOutputStream`을 생성하여 출력 문자열을 customize 가능
+- `handleEvents` 연산자를 사용하여 lifecycle 이벤트를 가로채고 작업 수행 가능
+- `breakpointOnError` 및 `breakpoint` 연산자를 사용하여 특정 이벤트를 중단 가능
+
 
 
