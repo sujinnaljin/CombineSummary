@@ -216,7 +216,16 @@ final public class Future<Output, Failure> : Publisher
 ### [Incrementally transforming outout]
 
 - `scan(_:_:)`
-  - upstream publisher에서 방출된 현재 값과, 해당 closure에서 반환된 마지막 값을 같이 보냄
+
+  - upstream publisher에서 방출된 현재 값과, 해당 closure에서 반환된 마지막 값을 같이 보냄 (reduce랑 기능이 비슷하다고 보면 됨)
+
+  ```swift
+    (0...5).publisher
+    .scan(0) { return $0 + $1 }
+    .sink { print ("\($0)", terminator: " ") }
+   // Prints: "0 1 3 6 10 15 ".
+  ```
+  
   - 비슷하게 동작하는 `tryscan` 이라는 error throwing 연산자도 있음. 만약 클로저에서 에러 방출하면 `tryscan`은 해당 에러와 함께 fail 함
 
 ## Chapter 4. Filtering Operators
