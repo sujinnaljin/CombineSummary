@@ -851,5 +851,111 @@ let subscription = publisher.connect()
 - `handleEvents` 연산자를 사용하여 lifecycle 이벤트를 가로채고 작업 수행 가능
 - `breakpointOnError` 및 `breakpoint` 연산자를 사용하여 특정 이벤트를 중단 가능
 
+## Chapter 11. Timers
 
+- `RunLoop` , `Timer`, `DispatchSourceTimer` 각각을 이용해 타이머를 만들 수 있음
+- 하지만 Combine에서 이러한 모든 타이머가 동일한 건 아님.
+
+### [Using RunLoop]
+
+- 메인 스레드 및 사용자가 생성하는 모든 스레드는 자체 RunLoop를 가질 수 있음
+- 현재 스레드에서 `RunLoop.current` 를 호출하면, 필요할 경우 Foundation에서 생성해줌
+
+> Note: RunLoop 클래스는 thread-safe 하지 않음. 현재 스레드의 실행 루프에 대해서만 RunLoop 메서드를 호출해야 함
+
+- RunLoop는 Scheduler protocol을 구현하는데, 여기에 cancellable 타이머를 만들 수 있는 method도 정의되어 있음
+
+```swift
+let runLoop = RunLoop.main
+
+let subscription = runLoop.schedule(
+  //언제부터
+  after: runLoop.now,
+  //얼마나 자주 (간격)
+  interval: .seconds(1), 
+  //Timer가 이벤트를 발생시키는 것에 여유를 허용하는 것
+  //요구한 시간으로부터의 허용 가능한 편차를 지정하여 전원 관리와 반응성을 위한 최적화
+  //Timer가 실제 이벤트를 발생하는 시간은 (지정된 시간) ~ (지정된 시간 + tolerance) 
+  //Apple 공식 문서에서 권장하는 Tolerance 값은 최소 원래 간격의 10% 이상
+  tolerance: .milliseconds(100) 
+) {
+  print("Timer fired")
+}
+```
+
+- Cancellable를 반환하기 때문에 아래와 같이 타이머를 중지할 수 있음
+
+```swift
+runLoop.schedule(after: .init(Date(timeIntervalSinceNow: 3.0))) {
+  cancellable.cancel()
+}
+```
+
+- 하지만 모든 것을 고려했을 때, RunLoop는 타이머를 만드는 최선의 방법이 아님
+
+### [Using the Timer class]
+
+- Timer는 delegate 패턴과 RunLoop과의 긴밀한 관계 때문에 항상 사용하기 까다로웠음
+- Combine은 간단히 publisher로 사용할 수 있는 방법을 제공
+
+```swift
+let publisher = Timer
+.publish(
+  //얼마나 자주
+  every: 1.0, 
+  //timer가 어느 스레드에 설정될 것인지. (.main, .current 등 사용 가능)
+  on: .main, 
+  //run loop mode (common은 default mode를 의미)
+  in: .common)
+.autoconnect()
+```
+
+> Note: 이 코드를 DispatchQueue.main이 아닌 다른 Dispatch queue에서 실행하면 예기치 않은 결과가 발생할 수 있음. 왜냐하면 이벤트를 처리하기 위해서는 run loop의 run 메소드를 호출해야 하는데, Dispatch 프레임워크는 run loop를 사용하지 않고 스레드를 관리함. 따라서 main queue 외의 대기열에서는 타이머가 작동하지 않음. 
+>
+> 👩🏻‍💻 Main Thread는 애플리케이션이 실행될 때 프레임워크 차원에서 자동으로 RunLoop를 설정하고 실행(Main Runloop)하기 때문에 내가 run 호출 안해도 잘 돌아가는 것
+
+- Timer가 반환하는 publisher는 `ConnectablePublisher` 이라서 `connect()` 메소드 호출전까지는 구독을 시작하지 않음. 첫 번째 subscriber가 구독할 때 자동으로 연결되는 `autoconnect()` 연산자를 사용할 수도 있음
+- publisher의  output 타입은 `Date` 
+- `scan` 을 사용해서 증가하는 값을 방출하게 할 수도 있음
+
+```swift
+let subscription = Timer
+  .publish(every: 1.0, on: .main, in: .common)
+  .autoconnect()
+  .scan(0) { counter, _ in counter + 1 }
+  .sink { counter in
+    print("Counter is \(counter)")
+  }
+
+/**
+Counter is 1
+Counter is 2
+Counter is 3
+Counter is 4
+Counter is 5
+*/
+```
+
+### [Using DispatchQueue]
+
+- Dispatch queue를 사용하여 타이머 이벤트를 생성할 수 있음 
+- Dispatch 프레임워크가 `DispatchTimerSource` 라는 event source를 가지고 있긴 하지만, Combine은 이에 대한 인터페이스를 제공하지 않기 때문에 다른 방법을 사용하여 타이머 이벤트를 생성 가능
+
+```swift
+let queue = DispatchQueue.main
+let source = PassthroughSubject<Int, Never>()
+var counter = 0
+
+let cancellable = queue.schedule(
+  after: queue.now,
+  interval: .seconds(1)
+) {
+  source.send(counter)
+  counter += 1
+}
+
+let subscription = source.sink {
+  print("Timer emitted \($0)")
+}
+```
 
