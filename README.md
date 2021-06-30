@@ -958,4 +958,111 @@ let subscription = source.sink {
   print("Timer emitted \($0)")
 }
 ```
+## Chapter 12. Key-Value Observing
+
+-  single variable의 변화에 대해 observe 하는 매커니즘으로 Combine은 아래와 같은 방법 제공
+  - object의 KVO-compliant property에 대해 publisher 제공
+  - 여러개의 varibale 이 변할 수 있는 상황에서는 ObservableObject protocol을 통해 처리
+
+### [Introducing publisher(for:options)]
+
+- KVO는 Objective-C의 필수 구성 요소로, Foundation, UIKit, AppKit 클래스의 많은 속성들이 KVO-compliant(호환) 함. 따라서 KVO 를 이용해서 변경 사항에 대한 관찰 가능
+
+```swift
+let queue = OperationQueue()
+
+queue
+  .publisher(for: \.operationCount)
+  .sink {
+    print("Outstanding operations in queue: \($0)")
+  }
+```
+
+- publisher(for:) 안에 관찰할 property를 keypath로 쓰면, 값 변화를 방출하는 publisher를 얻을 수 있음 
+
+### [Preparing and subscribing to your own KVO-compliant properties]
+
+- 아래와 같은 조건을 충족하면 자신의 코드에서 Key-Value Observing을 사용할 수 있음. 
+  - object가 class이고 NSObject를 상속
+  - @objc dynamic 속성을 이용해 property를 observable 하게 표시
+  - 이렇게 하면 표시된 property가 KVO와 호환되며, Combine으로 관찰 가능
+
+```swift
+class TestObject: NSObject {
+  @objc dynamic var integerProperty: Int = 0
+}
+
+let obj = TestObject()
+
+let subscription = obj.publisher(for: \.integerProperty)
+  .sink {
+    print("integerProperty changes to \($0)")
+  }
+
+obj.integerProperty = 100
+obj.integerProperty = 200
+
+//출력
+//integerProperty changes to 0
+//integerProperty changes to 100
+//integerProperty changes to 200
+```
+
+- 초기 값인 0도 함께 출력되는데, 원한다면 option 파라미터 통해 제거 가능 (👩🏻‍💻 value 가 변화하지 않아도 바로 초기값은 출력됨)
+- KVO는 모든 Objective-C 타입과, Objective-C로 bridge 될 수 있는 스위프트 타입에서 작동. 따라서 예시에서 integerProperty가 Swift type(Int)을 사용 중인데도, Objective-C 기능인 KVO가 잘 작동함 
+- 만약 Objective-C와 호환되지 않는 순수 Swift 타입에 @objc 붙이려고 하면 에러나는데, 이것이 Key-Value Observing의 한계
+
+```swift
+struct PureSwift {
+  let a: (Int, Bool)
+}
+
+class TestObject: NSObject {
+  //컴파일 에러
+  //property cannot be marked @objc because its type cannot be represented in Objective-C
+  @objc dynamic var structProperty: PureSwift = .init(a: (0,false))
+}
+
+```
+
+- `publisher(for:options)` 에 두번째 인자로 들어가는 option에 네가지 종류가 있음
+
+  - `.initial` - initial 값 방출. default 값이라서 위에서 `integerProperty changes to 0` 와 같이 기본으로 초기 값 프린트 된 것
+
+    만약 initial 값 원하지 않는 다면 아래와 같이 옵션 설정하면 됨
+
+    ```
+    obj.publisher(for: \.stringProperty, options: [])
+    ```
+
+  - `.prior` - 변화가 발생할때 이전값과 새로운 값 모두 방출
+
+  - `.old` / `.new` - 해당 publisher에서는 사용되지 않음. 그냥 새로운 값만 방출할 뿐 별다른 기능 없음
+
+### [ObservableObject]
+
+- Combine의 ObservableObject 프로토콜은 NSObject에서 파생된 객체뿐만 아니라 Swift 객체에서도 작동
+- @Published property wrapper와 함께 동작하면서, `objectWillChange` publisher(컴파일러가 생성) 가 있는 class 를 만들 수 있게 함
+- 이를 통해 속성의 변경 시기를 알려주는 객체를 생성할 수 있음
+
+```swift
+class MonitorObject: ObservableObject {
+  @Published var someProperty = false
+  @Published var someOtherProperty = ""
+}
+
+let object = MonitorObject()
+let subscription = object.objectWillChange.sink {
+  print("object will change")
+}
+
+object.someProperty = true
+object.someOtherProperty = "Hello world
+```
+
+- ObservableObject 프로토콜을 conform 하면 컴파일러는 objectWillChange property를 자동으로 생성
+- 해당 publisher은 <Void, Never>의  `ObservableObjectPublisher` 임
+- @Published 변수 중 하나가 변경될 때마다 `objectWillChange`가 실행되는데, 어떤 속성이 변경되었는지는 알 수 없음
+- 이벤트를 통합해서 화면 업데이트를 간소화하는 SwiftUI와 매우 잘 작동하도록 설계 됨
+
 
